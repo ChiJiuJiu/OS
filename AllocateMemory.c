@@ -49,10 +49,6 @@ Node* firstNode(Node* Free,int size){
         }
     return GetTarget(Free, p, size);
 }
-void Adjust(Node* pre,Node* next){
-    if(pre->loc == next->loc)
-        next->loc += pre->size;
-}
 void Allocate(Node* Head, Node* p){
     Node *pre = Head;
     Node *target = Head->next;
@@ -76,85 +72,124 @@ void Request(int size){
 	}
     Allocate(Allocation, p);
 }
-void Merge(Node* pre,Node* target,Node* p){
-    if(pre->loc + pre->size == p->loc){
-        pre->size += p->size;
-        free(p);
-        while (pre->next)
-        {
-            if (pre->loc + pre->size == target->loc)
-            {
-                pre->size += target->size;
-                pre->next = target->next;
-                free(target);
-                target = pre->next;
-            }
-        }
-    }else if(target && p->loc+p->size == target->loc){
-        target->loc = p->loc;
-        target->size += p->size;
-        free(p);
-        pre = target;
-        target = pre->next;
-        while(pre->next){
-            if (pre->loc + pre->size == target->loc)
-            {
-                pre->size += target->size;
-                pre->next = target->next;
-                free(target);
-                target = pre->next;
-            }
+Node* Adjust(Node* Head,Node* pre,Node* p,Node* next){
+	if(pre->loc == 0 && pre->size == 0){		//fist node
+		if(!next){
+			pre->next = p->next;
+			return p;
+		}else{
+			if(next->loc == p->loc + p->size){
+				p->size += next->size;
+				p->next = next->next;
+				next->next = NULL;
+				free(next);
+				pre->next = p->next;
+				p->next = NULL;
+				return p;
+			}else{
+				pre->next = next;
+				p->next = NULL;
+				return p;
+			}
+		}	
+	}
+    if(!next){
+        if(p->loc == pre->loc + pre->size){
+            pre->size += p->size;
+            Node *ppre = Head;
+            while(ppre->next != pre)
+                ppre = ppre->next;
+            ppre->next = p->next;
+            pre->next = NULL;
+            p->next = NULL;
+            free(p);
+            return pre;
+        }else{
+            pre->next = NULL;
+            return p;
         }
     }else{
-        p->next = target;
-        pre->next = p;
-    }
-}
-void Insert(Node* Head,Node* p){
-    Node *pre = Head;
-    Node *target = Head->next;
-    if(!target){
-        Head->next = p;
-        p->next = NULL;
-        return;
-    }
-    while(target){
-        if(target->loc <= p->loc){
-            pre = target;
-            target = target->next;
-        }else
-        {
-            break;
+        if ((p->loc != pre->loc + pre->size) && (p->loc + p->size != next->loc)){
+            pre->next = next;
+            p->next = NULL;
+            return p;
+        }else if((p->loc == pre->loc + pre->size) && (p->loc + p->size != next->loc)){
+            Node *target = Head;
+            while(target->next != pre){
+                target = target->next;
+            }
+            target->next = next;
+            pre->next = NULL;
+            p->next = NULL;
+            pre->size += p->size;
+            return pre;
+        }else{
+            pre->size += p->size + next->size;
+            Node *target = Head;
+            while(target->next != pre){
+                target = target->next;
+            }
+            target->next = next->next;
+            pre->next = NULL;
+            p->next = NULL;
+            next->next = NULL;
+            free(p);
+            free(next);
+            return pre;
         }
     }
-    Merge(pre, target, p);
 }
-Node* Findloc(Node* Head,int loc){
-    Node *p = Head->next;
+void Insert(Node* Head,Node* node){
     Node *pre = Head;
-    if(!p)
-        return NULL;
-    while(p){
-        if(p->loc != loc){
-            pre = p;
-            p = p->next;
-        }else
-        	break;
-    }
+    Node *p = Head->next;
     if(!p){
-        return NULL;
+        pre->next = node;
+        node->next = NULL;
+        return;
     }
-    pre->next = p->next;
-    p->next = NULL;
-    return p;
+    while(p && (p->loc < node->loc)){
+        pre = p;
+        p = p->next;
+    }
+    node->next = p;
+    pre->next = node;
+    return;
 }
-void FreeMemory(Node* Head,int loc){
-    Node *p = Findloc(Head, loc);
-    if(!p){
-    	printf("Free Memory Fail!\n");
-    	return;	
+int Merge(Node* pre,Node *next){
+    if(next->loc == pre->loc + pre->size){
+        pre->size += next->size;
+        pre->next = next->next;
+        next->next = NULL;
+        free(next);
+        return 1;
+    }
+    return 0;
+}
+void FreeMemory(Node *Allocation, int loc){
+    Node *pre = Allocation;
+    Node *p = Allocation->next;
+    if(!p)
+        return;
+    while(p && (p->loc != loc)){
+    	pre = p;
+    	p = p->next;
 	}
-    Insert(Free, p);
+	if(!p)
+		return;
+    Node *target = Adjust(Allocation,pre, p, p->next);
+    Insert(Free, target);
+    pre = Free->next;
+    if(!pre)
+        return;
+    p = pre->next;
+    while(p){
+        if(Merge(pre,p))
+            p = pre->next;
+        else{
+            pre = p;
+            p = pre->next;
+        }
+    }
 }
 void Display(Node* Head){
     Node *p = Head->next;
@@ -183,6 +218,10 @@ void Menu(){
 int main(){
     Free = (Node *)malloc(sizeof(Node));
     Allocation = (Node *)malloc(sizeof(Node));
+    Free->loc = 0;
+    Free->size = 0;
+    Allocation->loc = 0;
+    Allocation->size = 0;
     Free->next = NULL;
     Allocation->next = NULL;
     int x = 0,loc = 0,size = 0;
